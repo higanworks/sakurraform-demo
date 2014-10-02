@@ -1,0 +1,25 @@
+SITE
+  remote: https://supermarket.getchef.com/api/v1
+  specs:
+    apt (2.6.0)
+    yum (3.3.2)
+
+GIT
+  remote: https://github.com/treasure-data/chef-td-agent.git
+  ref: master
+  sha: 1daa7273d4921986ecf4efc71340c101493df611
+  specs:
+    td-agent (0.0.1)
+      apt (>= 0.0.0)
+      yum (>= 0.0.0)
+
+PATH
+  remote: ./site-cookbooks/sakurra_demo
+  specs:
+    sakurra_demo (0.1.0)
+
+DEPENDENCIES
+  apt (>= 0)
+  sakurra_demo (>= 0)
+  td-agent (>= 0)
+

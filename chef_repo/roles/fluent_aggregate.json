@@ -1,0 +1,6 @@
+{
+  "name": "fluent_aggregate",
+  "run_list" : [
+    "sakurra_demo::default"
+    ]
+}

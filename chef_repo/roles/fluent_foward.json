@@ -1,0 +1,6 @@
+{
+  "name": "fluent_foward",
+  "run_list" : [
+    "sakurra_demo::default"
+    ]
+}

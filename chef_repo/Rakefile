@@ -1,0 +1,85 @@
+require 'yaml'
+require 'json'
+require 'pp'
+require 'chamber'
+
+@server_plan = Chamber.load files: ['../plan/server.yml']
+
+servers =  Dir.glob('../state/server/*.yml')
+@server_states = []
+servers.map do |s|
+  @server_states << YAML.load(File.read(s))
+end
+
+@sakura_credencial = Chamber.load files: ['../.sakuracloud/credentials']
+desc 'show server_states for debug'
+task :default do
+  pp @server_states
+end
+
+desc 'bootstrap servers with knife-zero'
+task :bootstrap do
+  @server_plan[:server].each do |server|
+    ip_addr = ret_ip(server)
+    sakurra_name = ret_sakurra_name(server)
+    system "./bin/knife zero bootstrap #{ip_addr} -x ubuntu --sudo -N #{sakurra_name} -r 'role[#{server["meta"]["chef_role"].first}]'"
+  end
+
+  ## Need converge twice
+  system "./bin/knife zero chef_client 'name:*' -x ubuntu --sudo --attribute ipaddress"
+end
+
+desc 'add hosts to dozens'
+task :add_hostname do
+  require 'dozens'
+  RECORD_BASE  = 'http://dozens.jp/api/record'
+  doze_client = Dozens::API.new(ENV['DOZENS_ID'], ENV['DOZENS_KEY'])
+  if doze_client.records(ENV['DOZENS_DOMAIN']).empty?
+    @server_plan[:server].each do |server|
+      ip_addr = ret_ip(server)
+      record = {}
+      record[:domain]  = ENV['DOZENS_DOMAIN']
+      record[:name]    = server.name
+      record[:type]    = "A"
+      record[:prio]    = 10
+      record[:content] = ip_addr
+      record[:ttl]     = "7200"
+
+      doze_client.create_record(record)
+    end
+  end
+  puts JSON.pretty_generate(doze_client.records(ENV['DOZENS_DOMAIN']))
+end
+
+desc 'clear hosts on dozens'
+task :flush_hostname do
+  require 'dozens'
+  RECORD_BASE  = 'http://dozens.jp/api/record'
+  doze_client = Dozens::API.new(ENV['DOZENS_ID'], ENV['DOZENS_KEY'])
+  records = doze_client.records(ENV['DOZENS_DOMAIN'])['record']
+  records.each do |record|
+    doze_client.delete_record(record['id'])
+  end
+end
+
+def ret_ip(server)
+  state = @server_states.find {|ss| ss[:name].match(/^#{server.name}/) }
+  state[:interfaces].first['UserIPAddress']
+end
+
+def ret_sakurra_name(server)
+  state = @server_states.find {|ss| ss[:name].match(/^#{server.name}/) }
+  state[:name]
+end
+
+desc 'convert credentials to data_bag'
+task :data_bag do
+  FileUtils.mkdir_p('./data_bags/sakura')
+  item = {}
+  item['id'] = 'credencial'
+  item['bs_bucket'] = @sakura_credencial[:default]['sakura_base_storage_bucket']
+  item['bs_token']  = @sakura_credencial[:default]['sakura_base_storage_token']
+  File.open('./data_bags/sakura/credencial.json' ,'w') do |f|
+    f.puts(JSON.pretty_generate(item))
+  end
+end
